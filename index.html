@@ -86,8 +86,8 @@
             display: none;
             position: fixed;
             left: 50%;
-            top: 20%;
-            transform: translate(-50%, 0);
+            top: 50%;
+            transform: translate(-50%, -50%);
             background: #fff;
             color: #222;
             padding: 20px 32px;
@@ -95,6 +95,7 @@
             box-shadow: 0 2px 16px #0003;
             z-index: 1000;
             font-size: 18px;
+            text-align: center;
         }
         /* Calendar navigation */
         .calendar-header {
@@ -102,6 +103,8 @@
             justify-content: space-between;
             align-items: center;
             margin-bottom: 15px;
+            flex-wrap: wrap; /* Allow wrapping on smaller screens */
+            gap: 10px; /* Space between buttons */
         }
         .calendar-header button {
             background: var(--accent-color);
@@ -118,6 +121,9 @@
         .calendar-header h3 {
             margin: 0;
             font-size: 20px;
+            flex-grow: 1; /* Allow month/year to take available space */
+            text-align: center;
+            cursor: pointer; /* Indicate clickable */
         }
         #full-calendar table {
             width: 100%;
@@ -136,6 +142,35 @@
             background: #add8e6;
             font-weight: bold;
         }
+        /* Month/Year Grid */
+        .month-year-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            padding: 15px;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px #0001;
+            margin-top: 10px;
+            text-align: center;
+        }
+        .month-year-grid button {
+            background: #e5e7eb;
+            color: #374151;
+            padding: 10px 0;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .month-year-grid button:hover {
+            background: #d1d5db;
+        }
+        .month-year-grid button.active-selection {
+            background: var(--accent-color);
+            color: #fff;
+        }
+
         /* Notepad specific styles */
         #notepad-new-note-title, #notepad-new-note-content {
             width: calc(100% - 16px);
@@ -237,10 +272,11 @@
         <div id="calendar-section" style="display:none;">
             <div style="font-size:24px;font-weight:bold;margin-bottom:12px;">Calendar</div>
             <div class="calendar-header">
-                <button id="prev-month-btn">Previous Month</button>
+                <button id="prev-month-btn">Previous</button>
                 <h3 id="current-month-year"></h3>
-                <button id="next-month-btn">Next Month</button>
+                <button id="next-month-btn">Next</button>
             </div>
+            <div id="month-year-selection" class="month-year-grid" style="display: none;"></div>
             <div id="full-calendar"></div>
             <div id="calendar-tasks" style="margin-top:20px;"></div>
         </div>
@@ -289,9 +325,11 @@
             <label style="display:block;margin-bottom:8px;">Accent Color:
                 <input type="color" id="accent-color" value="#2563eb">
             </label>
-           
+            <label style="display:block;margin-bottom:8px;">Personalized Tags (comma separated):
+                <input type="text" id="custom-tags" placeholder="e.g. Work,Personal,Study">
+            </label>
         </div>
-        <div id="popup" style="display:none;position:fixed;left:50%;top:20%;transform:translate(-50%,0);background:#fff;color:#222;padding:20px 32px;border-radius:8px;box-shadow:0 2px 16px #0003;z-index:1000;font-size:18px;"></div>
+        <div id="popup" style="display:none;"></div>
     </div>
 
     <div class="modal-bg" id="modal-bg" style="display:none;">
@@ -329,6 +367,7 @@
 
         // Calendar variables
         let currentCalendarDate = new Date(); // Tracks the currently displayed month in the calendar
+        let calendarView = 'month'; // 'month', 'months', 'years'
 
         // --- Local Storage Load & Save ---
         function loadData() {
@@ -435,6 +474,7 @@
         const nextMonthBtn = document.getElementById('next-month-btn');
         const currentMonthYear = document.getElementById('current-month-year');
         const fullCalendarEl = document.getElementById('full-calendar');
+        const monthYearSelectionEl = document.getElementById('month-year-selection');
 
 
         let pieChartInstance = null; // To store the Chart.js instance
@@ -773,7 +813,6 @@
         function showSection(section) {
             document.getElementById('tasks-section').style.display = section === 'tasks' ? '' : 'none';
             document.getElementById('calendar-section').style.display = section === 'calendar' ? '' : 'none';
-            // Borpin Board section is removed
             document.getElementById('notepad-section').style.display = section === 'notepad' ? '' : 'none';
             document.getElementById('settings-section').style.display = section === 'settings' ? '' : 'none';
 
@@ -781,14 +820,22 @@
             if (section !== 'notepad') {
                 notepadEditArea.style.display = 'none';
             }
+            // Reset calendar view when navigating away or to it
+            if (section !== 'calendar') {
+                calendarView = 'month';
+                monthYearSelectionEl.style.display = 'none';
+            }
         }
 
         // --- Calendar Feature ---
+        const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
         function renderFullCalendar() {
             const year = currentCalendarDate.getFullYear();
             const month = currentCalendarDate.getMonth(); // 0-indexed
 
-            currentMonthYear.textContent = `${currentCalendarDate.toLocaleString('default', { month: 'long' })} ${year}`;
+            currentMonthYear.textContent = `${monthNames[month]} ${year}`;
+            monthYearSelectionEl.style.display = 'none'; // Hide selection grids
 
             const firstDay = new Date(year, month, 1);
             const lastDay = new Date(year, month + 1, 0);
@@ -822,11 +869,66 @@
         function changeMonth(delta) {
             currentCalendarDate.setMonth(currentCalendarDate.getMonth() + delta);
             renderFullCalendar();
+            calendarView = 'month'; // Ensure we're back to month view after navigation
         }
 
-        function renderCalendarTasks() {
-            // This function is now mostly handled by showTasksForDate being called on date click
-            // No need to render all tasks here initially
+        function renderMonthSelection() {
+            calendarView = 'months';
+            fullCalendarEl.innerHTML = ''; // Hide day grid
+            document.getElementById('calendar-tasks').innerHTML = ''; // Clear tasks
+
+            let html = '';
+            const currentMonth = currentCalendarDate.getMonth();
+            monthNames.forEach((month, index) => {
+                const activeClass = index === currentMonth ? 'active-selection' : '';
+                html += `<button class="${activeClass}" onclick="selectMonth(${index})">${month}</button>`;
+            });
+            monthYearSelectionEl.innerHTML = html;
+            monthYearSelectionEl.style.display = 'grid';
+        }
+
+        function selectMonth(monthIndex) {
+            currentCalendarDate.setMonth(monthIndex);
+            calendarView = 'month';
+            renderFullCalendar();
+        }
+
+        function renderYearSelection() {
+            calendarView = 'years';
+            fullCalendarEl.innerHTML = ''; // Hide day grid
+            document.getElementById('calendar-tasks').innerHTML = ''; // Clear tasks
+
+            let html = '';
+            const currentYear = currentCalendarDate.getFullYear();
+            const startYear = currentYear - 5; // Show a range of years
+            const endYear = currentYear + 5;
+
+            for (let year = startYear; year <= endYear; year++) {
+                const activeClass = year === currentYear ? 'active-selection' : '';
+                html += `<button class="${activeClass}" onclick="selectYear(${year})">${year}</button>`;
+            }
+            monthYearSelectionEl.innerHTML = html;
+            monthYearSelectionEl.style.display = 'grid';
+        }
+
+        function selectYear(year) {
+            currentCalendarDate.setFullYear(year);
+            calendarView = 'months'; // After selecting year, show months for that year
+            renderMonthSelection();
+        }
+
+        function toggleCalendarView() {
+            if (calendarView === 'month') {
+                renderMonthSelection();
+            } else if (calendarView === 'months') {
+                renderYearSelection();
+            } else if (calendarView === 'years') {
+                // If already in years view, clicking again might go back to current month?
+                // For simplicity, let's reset to month view for the current date
+                currentCalendarDate = new Date(); // Reset to today's month
+                renderFullCalendar();
+                calendarView = 'month';
+            }
         }
 
         function showTasksForDate(date) {
@@ -1001,6 +1103,8 @@
                 document.querySelectorAll('.notepad-note-card').forEach(card => {
                     card.style.borderLeftColor = '#6d28d9'; // Darker purple for notepad notes
                 });
+                document.getElementById('popup').style.background = '#27272a';
+                document.getElementById('popup').style.color = '#f3f4f6';
             } else {
                 document.body.style.background = '#f3f4f6';
                 document.body.style.color = ''; // Reset to default
@@ -1031,6 +1135,8 @@
                 document.querySelectorAll('.notepad-note-card').forEach(card => {
                     card.style.borderLeftColor = ''; // Reset border color
                 });
+                document.getElementById('popup').style.background = '';
+                document.getElementById('popup').style.color = '';
             }
         }
 
@@ -1059,8 +1165,7 @@
         });
 
         navTasks.addEventListener('click', () => { setActiveNav(navTasks); showSection('tasks'); renderTasks(); });
-        navCalendar.addEventListener('click', () => { setActiveNav(navCalendar); showSection('calendar'); renderFullCalendar(); renderCalendarTasks(); });
-        // Borpin Board navigation removed
+        navCalendar.addEventListener('click', () => { setActiveNav(navCalendar); showSection('calendar'); renderFullCalendar(); });
         navNotepad.addEventListener('click', () => { setActiveNav(navNotepad); showSection('notepad'); renderNotepad(); });
         navSettings.addEventListener('click', () => { setActiveNav(navSettings); showSection('settings'); });
 
@@ -1103,6 +1208,7 @@
         // Calendar navigation event listeners
         prevMonthBtn.addEventListener('click', () => changeMonth(-1));
         nextMonthBtn.addEventListener('click', () => changeMonth(1));
+        currentMonthYear.addEventListener('click', toggleCalendarView);
 
 
         // Expose functions to global scope for inline HTML event handlers
@@ -1113,6 +1219,8 @@
         window.showTasksForDate = showTasksForDate;
         window.addTagFromCustom = addTagFromCustom;
         window.openNoteForEditing = openNoteForEditing; // Expose for click handler
+        window.selectMonth = selectMonth; // Expose for month selection grid
+        window.selectYear = selectYear; // Expose for year selection grid
 
 
         // Initial load and render
