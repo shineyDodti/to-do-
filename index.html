@@ -1,0 +1,1127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>FocusBoard - Stay on Task. Stay on Time.</title>
+    <style>
+        :root {
+            --accent-color: #2563eb;
+        }
+        body { font-family: sans-serif; background: #f3f4f6; margin: 0; font-size: 16px; }
+        .sidebar { width: 220px; background: #fff; height: 100vh; position: fixed; left: 0; top: 0; box-shadow: 2px 0 8px #0001; }
+        .sidebar h1 { color: var(--accent-color); margin: 0; }
+        .sidebar p { color: #6b7280; font-size: 12px; }
+        .sidebar nav { margin-top: 30px; }
+        .sidebar button { display: block; width: 100%; border: none; background: none; padding: 12px 24px; text-align: left; font-size: 16px; cursor: pointer; border-radius: 6px; margin-bottom: 4px; }
+        .sidebar button.active { background: #dbeafe; color: var(--accent-color); }
+        .main { margin-left: 220px; padding: 40px; }
+        .task-card, .notepad-note-card { background: #fff; border-radius: 8px; box-shadow: 0 2px 8px #0001; padding: 16px; margin-bottom: 12px; border-left: 6px solid #10b981; }
+        .task-card.high { border-color: #ef4444; }
+        .task-card.medium { border-color: #f59e42; }
+        .task-card.completed { opacity: 0.6; text-decoration: line-through; }
+        .task-card.half { border-color: #f59e42; } /* Style for half-done tasks */
+        .tags { margin-top: 4px; }
+        .tag { background: #dbeafe; color: var(--accent-color); font-size: 12px; border-radius: 4px; padding: 2px 8px; margin-right: 4px; }
+        .actions button { margin-right: 6px; font-size: 12px; background: #e5e7eb; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; }
+        .actions button:hover { background: #d1d5db; }
+        .modal-bg { position: fixed; inset: 0; background: #0006; display: flex; align-items: center; justify-content: center; z-index: 10; }
+        .modal { background: #fff; border-radius: 8px; padding: 24px; width: 320px; max-height: 80vh; overflow-y: auto; }
+        .modal input, .modal textarea, .modal select { width: calc(100% - 16px); margin-bottom: 12px; padding: 8px; border-radius: 4px; border: 1px solid #ddd; }
+        .modal .tag-list { margin-bottom: 12px; }
+        .modal .tag-list span { background: #dbeafe; color: var(--accent-color); font-size: 12px; border-radius: 4px; padding: 2px 8px; margin-right: 4px; cursor: pointer; }
+        .modal .actions { text-align: right; }
+        .modal .actions button { margin-left: 8px; background: var(--accent-color); color: #fff; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; }
+        .modal .actions button#cancel-btn { background: #6b7280; }
+        .search input { width: calc(100% - 16px); padding: 8px; border-radius: 4px; border: 1px solid #ddd; margin-bottom: 20px; }
+        /* Progress bar */
+        .progress-container {
+            background: #e5e7eb;
+            border-radius: 4px;
+            overflow: hidden;
+            height: 24px;
+            margin-bottom: 16px;
+            text-align: center;
+            line-height: 24px;
+            color: #fff;
+            font-size: 12px;
+        }
+        .progress-bar {
+            height: 100%;
+            background: #10b981;
+            width: 0;
+            transition: width 0.3s;
+            text-align: center;
+            color: #fff;
+        }
+        /* Filters */
+        .filter-container {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+        }
+        .filter-container select, .filter-container input {
+            padding: 6px 8px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+            flex: 1;
+            min-width: 120px;
+        }
+        .filter-container button {
+            background: var(--accent-color);
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            padding: 6px 12px;
+            cursor: pointer;
+        }
+        /* Pie chart */
+        #pie-chart {
+            max-width: 400px;
+            margin: 0 auto 16px auto;
+        }
+        /* Popup */
+        #popup {
+            display: none;
+            position: fixed;
+            left: 50%;
+            top: 20%;
+            transform: translate(-50%, 0);
+            background: #fff;
+            color: #222;
+            padding: 20px 32px;
+            border-radius: 8px;
+            box-shadow: 0 2px 16px #0003;
+            z-index: 1000;
+            font-size: 18px;
+        }
+        /* Calendar navigation */
+        .calendar-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        .calendar-header button {
+            background: var(--accent-color);
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            padding: 8px 12px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .calendar-header button:hover {
+            opacity: 0.9;
+        }
+        .calendar-header h3 {
+            margin: 0;
+            font-size: 20px;
+        }
+        #full-calendar table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: center;
+        }
+        #full-calendar th, #full-calendar td {
+            padding: 10px;
+            border: 1px solid #eee;
+        }
+        #full-calendar td.has-task {
+            background: #dbeafe;
+            cursor: pointer;
+        }
+        #full-calendar td.current-day {
+            background: #add8e6;
+            font-weight: bold;
+        }
+        /* Notepad specific styles */
+        #notepad-new-note-title, #notepad-new-note-content {
+            width: calc(100% - 16px);
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+        }
+        #notepad-new-note-content {
+            height: 120px; /* Make initial box bigger */
+        }
+        #notepad-note-list {
+            margin-top: 20px;
+        }
+        .notepad-note-card {
+            border-left: 6px solid #4f46e5;
+            cursor: pointer;
+        }
+        .notepad-note-card .note-title {
+            font-weight: bold;
+            font-size: 1.1em;
+            color: var(--accent-color);
+        }
+        .notepad-note-card .actions {
+            margin-top: 10px;
+            text-align: right;
+        }
+        #notepad-edit-area {
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            padding: 20px;
+            margin-top: 20px;
+            display: none; /* Hidden by default */
+        }
+        #notepad-edit-area input[type="text"], #notepad-edit-area textarea {
+            width: calc(100% - 20px);
+            padding: 10px;
+            margin-bottom: 15px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+        }
+        #notepad-edit-area textarea {
+            height: 150px;
+        }
+        #notepad-edit-area .actions button {
+            background: var(--accent-color);
+            color: #fff;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-left: 8px;
+        }
+        #notepad-edit-area .actions button#cancel-edit-note-btn {
+            background: #6b7280;
+        }
+        .notepad-controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="sidebar">
+        <div style="padding: 24px 16px 8px 16px; border-bottom: 1px solid #eee;">
+            <h1>FocusBoard</h1>
+            <p>Stay on Task. Stay on Time.</p>
+        </div>
+        <nav>
+            <button class="active" id="nav-tasks">Tasks</button>
+            <button id="nav-calendar">Calendar</button>
+            <button id="nav-notepad">Notepad</button>
+            <button id="nav-settings">Settings</button>
+        </nav>
+    </div>
+    <div class="main" id="main-content">
+        <div id="tasks-section">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                <div style="font-size:24px;font-weight:bold;">Task Manager</div>
+                <button id="add-task-btn" style="background: var(--accent-color); color: #fff; border: none; border-radius: 6px; padding: 10px 20px; font-size: 16px; cursor: pointer;">Add Task</button>
+            </div>
+            <div class="search">
+                <input type="text" id="search" placeholder="Search tasks...">
+            </div>
+            <div class="filter-container">
+                <select id="tag-filter"><option value="">All Tags</option></select>
+                <input type="date" id="date-filter">
+                <button id="export-btn">Export</button>
+                <button id="import-btn">Import</button>
+            </div>
+            <div class="progress-container">
+                <div class="progress-bar" id="progress-bar"></div>
+            </div>
+            <canvas id="pie-chart"></canvas>
+            <div id="task-list"></div>
+        </div>
+        <div id="calendar-section" style="display:none;">
+            <div style="font-size:24px;font-weight:bold;margin-bottom:12px;">Calendar</div>
+            <div class="calendar-header">
+                <button id="prev-month-btn">Previous Month</button>
+                <h3 id="current-month-year"></h3>
+                <button id="next-month-btn">Next Month</button>
+            </div>
+            <div id="full-calendar"></div>
+            <div id="calendar-tasks" style="margin-top:20px;"></div>
+        </div>
+        <div id="notepad-section" style="display:none;">
+            <div style="font-size:24px;font-weight:bold;margin-bottom:12px;">Notepad</div>
+
+            <div class="notepad-controls">
+                <button id="export-notepad-btn">Export All Notes</button>
+                <input type="file" id="import-notepad-file-input" style="display:none;" accept=".json">
+                <button id="import-notepad-btn">Import Notes</button>
+            </div>
+
+            <input type="text" id="notepad-new-note-title" placeholder="New note title">
+            <textarea id="notepad-new-note-content" placeholder="Write your new note here..."></textarea>
+            <button id="add-new-note-btn" style="background:var(--accent-color);color:#fff;border:none;border-radius:4px;padding:8px 16px;margin-top:8px;">Add New Note</button>
+
+            <div id="notepad-note-list" style="margin-top:20px;">
+                </div>
+
+            <div id="notepad-edit-area">
+                <h3 id="edit-note-title-display"></h3>
+                <input type="text" id="edit-note-title-input" placeholder="Note Title">
+                <textarea id="edit-note-content-input"></textarea>
+                <div class="actions">
+                    <button id="save-edited-note-btn">Save Changes</button>
+                    <button id="delete-current-note-btn" style="background: #ef4444;">Delete Note</button>
+                    <button id="cancel-edit-note-btn">Close</button>
+                </div>
+            </div>
+        </div>
+        <div id="settings-section" style="display:none;">
+            <div style="font-size:24px;font-weight:bold;margin-bottom:12px;">Settings</div>
+            <label style="display:block;margin-bottom:8px;">Theme:
+                <select id="theme-select">
+                    <option value="light">Light</option>
+                    <option value="dark">Dark</option>
+                </select>
+            </label>
+            <label style="display:block;margin-bottom:8px;">Font Size:
+                <select id="font-size-select">
+                    <option value="14px">Small</option>
+                    <option value="16px" selected>Medium</option>
+                    <option value="20px">Large</option>
+                </select>
+            </label>
+            <label style="display:block;margin-bottom:8px;">Accent Color:
+                <input type="color" id="accent-color" value="#2563eb">
+            </label>
+           
+        </div>
+        <div id="popup" style="display:none;position:fixed;left:50%;top:20%;transform:translate(-50%,0);background:#fff;color:#222;padding:20px 32px;border-radius:8px;box-shadow:0 2px 16px #0003;z-index:1000;font-size:18px;"></div>
+    </div>
+
+    <div class="modal-bg" id="modal-bg" style="display:none;">
+        <div class="modal">
+            <h2 id="modal-title">Add Task</h2>
+            <input type="text" id="task-title" placeholder="Title">
+            <textarea id="task-desc" placeholder="Description"></textarea>
+            <input type="date" id="task-due">
+            <select id="task-priority">
+                <option value="Low">Low</option>
+                <option value="Medium">Medium</option>
+                <option value="High">High</option>
+            </select>
+            <div style="display: flex; margin-bottom: 12px;">
+                <input type="text" id="tag-input" placeholder="Add tag" style="flex:1;">
+                <button id="add-tag-btn" style="background:var(--accent-color);color:#fff;border:none;border-radius:0 4px 4px 0;padding:8px 12px;">Add</button>
+            </div>
+            <div class="tag-list" id="tag-list"></div>
+            <div class="actions">
+                <button id="cancel-btn">Cancel</button>
+                <button id="save-btn">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        // --- Data ---
+        let tasks = [];
+        let editingTask = null;
+        let tagBuffer = [];
+        let notepadNotes = []; // Array for multiple notes
+        let editingNoteId = null; // To track which note is being edited
+        let customTags = ['Work', 'Personal', 'Study']; // Default tags
+
+        // Calendar variables
+        let currentCalendarDate = new Date(); // Tracks the currently displayed month in the calendar
+
+        // --- Local Storage Load & Save ---
+        function loadData() {
+            const t = localStorage.getItem('focusboard_tasks');
+            const np = localStorage.getItem('focusboard_notepad_notes');
+            const ct = localStorage.getItem('focusboard_custom_tags');
+
+            try {
+                if (t) tasks = JSON.parse(t);
+                else tasks = [
+                    { id: '1', title: 'Finish React project', desc: 'Complete the FocusBoard MVP', due: '2025-06-10', priority: 'High', tags: ['work'], status: 'not started', completed: false },
+                    { id: '2', title: 'Buy groceries', desc: 'Milk, eggs, bread', due: '2025-06-08', priority: 'Low', tags: ['personal'], status: 'not started', completed: false },
+                    { id: '3', title: 'Read a book', desc: 'Read 30 pages', due: '2025-06-09', priority: 'Medium', tags: ['personal'], status: 'not started', completed: false }
+                ];
+                if (np) notepadNotes = JSON.parse(np); else notepadNotes = [];
+                if (ct) customTags = JSON.parse(ct); else customTags = ['Work', 'Personal', 'Study'];
+
+                // Apply settings on load
+                const fs = localStorage.getItem('focusboard_font_size');
+                if (fs) document.body.style.fontSize = fs;
+                document.getElementById('font-size-select').value = fs || '16px';
+
+                const ac = localStorage.getItem('focusboard_accent_color');
+                if (ac) document.documentElement.style.setProperty('--accent-color', ac);
+                document.getElementById('accent-color').value = ac || '#2563eb';
+
+                const savedCustomTags = localStorage.getItem('focusboard_custom_tags');
+                if (savedCustomTags) document.getElementById('custom-tags').value = JSON.parse(savedCustomTags).join(', ');
+
+                const theme = localStorage.getItem('focusboard_theme');
+                if (theme) {
+                    document.getElementById('theme-select').value = theme;
+                    applyTheme(theme);
+                }
+            } catch (error) {
+                console.error("Failed to load data from local storage:", error);
+                // Reset to default data if loading fails
+                tasks = [
+                    { id: '1', title: 'Finish React project', desc: 'Complete the FocusBoard MVP', due: '2025-06-10', priority: 'High', tags: ['work'], status: 'not started', completed: false },
+                    { id: '2', title: 'Buy groceries', desc: 'Milk, eggs, bread', due: '2025-06-08', priority: 'Low', tags: ['personal'], status: 'not started', completed: false },
+                    { id: '3', title: 'Read a book', desc: 'Read 30 pages', due: '2025-06-09', priority: 'Medium', tags: ['personal'], status: 'not started', completed: false }
+                ];
+                notepadNotes = [];
+                customTags = ['Work', 'Personal', 'Study'];
+                saveData(); // Save the default data
+            }
+        }
+
+        function saveData() {
+            localStorage.setItem('focusboard_tasks', JSON.stringify(tasks));
+            localStorage.setItem('focusboard_notepad_notes', JSON.stringify(notepadNotes));
+            localStorage.setItem('focusboard_custom_tags', JSON.stringify(customTags));
+        }
+
+        // --- Elements ---
+        const taskListEl = document.getElementById('task-list');
+        const modalBg = document.getElementById('modal-bg');
+        const modalTitle = document.getElementById('modal-title');
+        const taskTitle = document.getElementById('task-title');
+        const taskDesc = document.getElementById('task-desc');
+        const taskDue = document.getElementById('task-due');
+        const taskPriority = document.getElementById('task-priority');
+        const tagInput = document.getElementById('tag-input');
+        const tagList = document.getElementById('tag-list');
+        const addTagBtn = document.getElementById('add-tag-btn');
+        const saveBtn = document.getElementById('save-btn');
+        const cancelBtn = document.getElementById('cancel-btn');
+        const addTaskBtn = document.getElementById('add-task-btn');
+        const searchInput = document.getElementById('search');
+        const mainContent = document.getElementById('main-content');
+        const navTasks = document.getElementById('nav-tasks');
+        const navCalendar = document.getElementById('nav-calendar');
+        const navNotepad = document.getElementById('nav-notepad');
+        const navSettings = document.getElementById('nav-settings');
+        
+        // Notepad elements
+        const newNoteTitleInput = document.getElementById('notepad-new-note-title');
+        const newNoteContentInput = document.getElementById('notepad-new-note-content');
+        const addNewNoteBtn = document.getElementById('add-new-note-btn');
+        const notepadNoteList = document.getElementById('notepad-note-list');
+        const notepadEditArea = document.getElementById('notepad-edit-area');
+        const editNoteTitleInput = document.getElementById('edit-note-title-input');
+        const editNoteContentInput = document.getElementById('edit-note-content-input');
+        const saveEditedNoteBtn = document.getElementById('save-edited-note-btn');
+        const deleteCurrentNoteBtn = document.getElementById('delete-current-note-btn');
+        const cancelEditNoteBtn = document.getElementById('cancel-edit-note-btn');
+        const exportNotepadBtn = document.getElementById('export-notepad-btn');
+        const importNotepadBtn = document.getElementById('import-notepad-btn');
+        const importNotepadFileInput = document.getElementById('import-notepad-file-input');
+
+
+        const themeSelect = document.getElementById('theme-select');
+        const fontSizeSelect = document.getElementById('font-size-select');
+        const accentColorInput = document.getElementById('accent-color');
+        const customTagsInput = document.getElementById('custom-tags');
+        const exportBtn = document.getElementById('export-btn');
+        const importBtn = document.getElementById('import-btn');
+        const tagFilterEl = document.getElementById('tag-filter');
+        const dateFilterEl = document.getElementById('date-filter');
+        const popup = document.getElementById('popup');
+
+        // Calendar specific elements
+        const prevMonthBtn = document.getElementById('prev-month-btn');
+        const nextMonthBtn = document.getElementById('next-month-btn');
+        const currentMonthYear = document.getElementById('current-month-year');
+        const fullCalendarEl = document.getElementById('full-calendar');
+
+
+        let pieChartInstance = null; // To store the Chart.js instance
+
+        // --- Functions ---
+        function renderTasks() {
+            const filter = searchInput.value.trim().toLowerCase();
+            const tagVal = tagFilterEl.value;
+            const dateVal = dateFilterEl.value;
+
+            let filtered = tasks.filter(t =>
+                (t.title.toLowerCase().includes(filter) || t.desc.toLowerCase().includes(filter) || t.tags.some(tag => tag.toLowerCase().includes(filter))) &&
+                (tagVal === '' || t.tags.includes(tagVal)) &&
+                (dateVal === '' || t.due === dateVal)
+            );
+
+            let html = '';
+            filtered.forEach(task => {
+                let priorityClass = task.priority.toLowerCase();
+                let completedClass = task.completed ? 'completed' : '';
+                let statusClass = task.status === 'half' ? 'half' : (task.completed ? 'completed' : '');
+                let statusLabel = task.status === 'half' ? 'Half Done' : (task.completed ? 'Completed' : 'Not Started');
+
+                html += `
+                    <div class="task-card ${priorityClass} ${statusClass}" draggable="true" data-task-id="${task.id}">
+                        <div style="display:flex;justify-content:space-between;">
+                            <div>
+                                <div style="font-weight:bold;">${task.title}</div>
+                                <div style="font-size:13px;color:#6b7280;">${task.desc}</div>
+                                <div class="tags">
+                                    ${task.tags.map(tag => `<span class="tag">${tag}</span>`).join('')}
+                                </div>
+                                <div style="font-size:12px;color:#f59e42;">${statusLabel}</div>
+                            </div>
+                            <div style="text-align:right;">
+                                <div style="font-size:12px;color:#6b7280;">Due: ${task.due}</div>
+                                <div style="font-size:12px;color:#6b7280;">Priority: ${task.priority}</div>
+                                <div class="actions" style="margin-top:8px;">
+                                    <button onclick="toggleStatus('${task.id}')">${task.status === 'half' ? 'Mark Complete' : (task.completed ? 'Mark Not Started' : 'Mark Half Done')}</button>
+                                    <button onclick="editTask('${task.id}')">Edit</button>
+                                    <button onclick="deleteTask('${task.id}')">Delete</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            taskListEl.innerHTML = html || '<div style="color:#6b7280;">No tasks found.</div>';
+            updateProgressBar();
+            renderTagFilters();
+            renderPieChart();
+            saveData(); // Save data after rendering tasks
+        }
+
+        function updateProgressBar() {
+            const completed = tasks.filter(t => t.completed).length;
+            const total = tasks.length;
+            const percent = total ? Math.round((completed / total) * 100) : 0;
+            const progressBar = document.getElementById('progress-bar');
+            progressBar.style.width = percent + '%';
+            progressBar.textContent = `${completed} of ${total} tasks completed (${percent}%)`;
+        }
+
+        function renderPieChart() {
+            const notStarted = tasks.filter(t => t.status === 'not started' && !t.completed).length;
+            const halfDone = tasks.filter(t => t.status === 'half').length;
+            const completed = tasks.filter(t => t.completed).length;
+
+            const ctx = document.getElementById('pie-chart').getContext('2d');
+
+            if (pieChartInstance) {
+                pieChartInstance.destroy(); // Destroy previous chart instance
+            }
+
+            pieChartInstance = new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: ['Not Started', 'Half Done', 'Completed'],
+                    datasets: [{
+                        data: [notStarted, halfDone, completed],
+                        backgroundColor: ['#ef4444', '#f59e42', '#10b981'],
+                        borderColor: '#fff',
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    if (context.parsed !== null) {
+                                        label += context.parsed + ' tasks';
+                                    }
+                                    return label;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderTagFilters() {
+            const tagSet = new Set();
+            tasks.forEach(t => t.tags.forEach(tag => tagSet.add(tag)));
+            customTags.forEach(tag => tagSet.add(tag)); // Add custom tags to filter options
+
+            tagFilterEl.innerHTML = '<option value="">All Tags</option>' +
+                Array.from(tagSet).sort().map(tag => `<option value="${tag}">${tag}</option>`).join('');
+
+            // Restore selected filter if it was set
+            const selectedTag = localStorage.getItem('focusboard_selected_tag_filter');
+            if (selectedTag) {
+                tagFilterEl.value = selectedTag;
+            }
+        }
+
+        // Drag-and-drop for tasks
+        let dragTaskId = null;
+        taskListEl.addEventListener('dragstart', (e) => {
+            if (e.target.classList.contains('task-card')) {
+                dragTaskId = e.target.dataset.taskId;
+                e.dataTransfer.effectAllowed = 'move';
+            }
+        });
+
+        taskListEl.addEventListener('dragover', (e) => {
+            e.preventDefault();
+        });
+
+        taskListEl.addEventListener('drop', (e) => {
+            e.preventDefault();
+            const dropTarget = e.target.closest('.task-card');
+            if (dragTaskId && dropTarget && dragTaskId !== dropTarget.dataset.taskId) {
+                const fromIdx = tasks.findIndex(t => t.id === dragTaskId);
+                const toIdx = tasks.findIndex(t => t.id === dropTarget.dataset.taskId);
+
+                if (fromIdx !== -1 && toIdx !== -1) {
+                    const [movedTask] = tasks.splice(fromIdx, 1);
+                    tasks.splice(toIdx, 0, movedTask);
+                    renderTasks();
+                }
+            }
+            dragTaskId = null;
+        });
+
+        // Export/Import (for tasks and main data)
+        exportBtn.addEventListener('click', () => {
+            const data = { tasks, notepadNotes, customTags }; // Include notepadNotes
+            const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'focusboard-backup.json';
+            a.click();
+            URL.revokeObjectURL(url);
+            showPopup('Data exported!');
+        });
+
+        importBtn.addEventListener('click', () => {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json,application/json';
+            input.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    try {
+                        const data = JSON.parse(ev.target.result);
+                        if (data.tasks && Array.isArray(data.tasks) && data.notepadNotes && Array.isArray(data.notepadNotes)) {
+                            tasks = data.tasks;
+                            notepadNotes = data.notepadNotes; // Assign imported notes
+                            customTags = data.customTags || ['Work', 'Personal', 'Study'];
+                            saveData();
+                            renderTasks();
+                            renderNotepad(); // Re-render notepad
+                            showPopup('Import successful!');
+                        } else {
+                            showPopup('Invalid file format.');
+                        }
+                    } catch {
+                        showPopup('Failed to import data.');
+                    }
+                };
+                reader.readAsText(file);
+            });
+            input.click();
+        });
+
+        function openModal(editTaskObj) {
+            modalBg.style.display = 'flex';
+            if (editTaskObj) {
+                modalTitle.textContent = 'Edit Task';
+                taskTitle.value = editTaskObj.title;
+                taskDesc.value = editTaskObj.desc;
+                taskDue.value = editTaskObj.due;
+                taskPriority.value = editTaskObj.priority;
+                tagBuffer = [...editTaskObj.tags];
+                editingTask = editTaskObj;
+            } else {
+                modalTitle.textContent = 'Add Task';
+                taskTitle.value = '';
+                taskDesc.value = '';
+                taskDue.value = '';
+                taskPriority.value = 'Low';
+                tagBuffer = [];
+                editingTask = null;
+            }
+            renderTags();
+            setTimeout(() => { taskTitle.focus(); }, 100);
+            document.querySelector('.modal').scrollTop = 0;
+        }
+
+        function closeModal() {
+            modalBg.style.display = 'none';
+            editingTask = null;
+            tagBuffer = [];
+        }
+
+        function renderTags() {
+            tagList.innerHTML = tagBuffer.map(tag =>
+                `<span tabindex="0" onclick="removeTag('${tag}')" onkeydown="if(event.key==='Enter'){removeTag('${tag}')}" title="Remove tag">${tag} ×</span>`
+            ).join('') +
+            customTags.filter(tag => !tagBuffer.includes(tag)).map(tag =>
+                `<span tabindex="0" onclick="addTagFromCustom('${tag}')" onkeydown="if(event.key==='Enter'){addTagFromCustom('${tag}')}" title="Add custom tag">${tag}</span>`
+            ).join('');
+        }
+
+        function addTagFromCustom(tag) {
+            if (tag && !tagBuffer.includes(tag)) {
+                tagBuffer.push(tag);
+                renderTags();
+            }
+        }
+
+        function saveTask() {
+            const title = taskTitle.value.trim();
+            if (!title) {
+                showPopup('Title required');
+                return;
+            }
+            const desc = taskDesc.value.trim();
+            const due = taskDue.value;
+            if (!due) {
+                showPopup('Due date required');
+                return;
+            }
+            const priority = taskPriority.value;
+
+            if (editingTask) {
+                editingTask.title = title;
+                editingTask.desc = desc;
+                editingTask.due = due;
+                editingTask.priority = priority;
+                editingTask.tags = [...tagBuffer];
+            } else {
+                tasks.push({
+                    id: Date.now().toString(),
+                    title, desc, due, priority,
+                    tags: [...tagBuffer],
+                    status: 'not started',
+                    completed: false
+                });
+            }
+            closeModal();
+            renderTasks();
+            showPopup('Task saved!');
+            saveData(); // Save data after saving a task
+        }
+
+        function editTask(id) {
+            const task = tasks.find(t => t.id === id);
+            if (task) {
+                openModal(task);
+            }
+        }
+
+        function deleteTask(id) {
+            if (confirm('Delete this task?')) {
+                tasks = tasks.filter(t => t.id !== id);
+                renderTasks();
+                showPopup('Task deleted!');
+                saveData(); // Save data after deleting a task
+            }
+        }
+
+        function toggleStatus(id) {
+            const task = tasks.find(t => t.id === id);
+            if (task) {
+                if (task.status === 'not started') {
+                    task.status = 'half';
+                    task.completed = false;
+                } else if (task.status === 'half') {
+                    task.status = 'completed';
+                    task.completed = true;
+                } else { // completed
+                    task.status = 'not started';
+                    task.completed = false;
+                }
+                renderTasks();
+                saveData(); // Save data after toggling status
+            }
+        }
+
+        function addTag() {
+            const tag = tagInput.value.trim();
+            if (tag && !tagBuffer.includes(tag)) {
+                tagBuffer.push(tag);
+                renderTags();
+            }
+            tagInput.value = '';
+            tagInput.focus();
+        }
+
+        function removeTag(tag) {
+            tagBuffer = tagBuffer.filter(t => t !== tag);
+            renderTags();
+        }
+
+        // --- Navigation ---
+        function setActiveNav(btn) {
+            [navTasks, navCalendar, navNotepad, navSettings].forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+        }
+
+        function showSection(section) {
+            document.getElementById('tasks-section').style.display = section === 'tasks' ? '' : 'none';
+            document.getElementById('calendar-section').style.display = section === 'calendar' ? '' : 'none';
+            // Borpin Board section is removed
+            document.getElementById('notepad-section').style.display = section === 'notepad' ? '' : 'none';
+            document.getElementById('settings-section').style.display = section === 'settings' ? '' : 'none';
+
+            // Reset notepad view when navigating away
+            if (section !== 'notepad') {
+                notepadEditArea.style.display = 'none';
+            }
+        }
+
+        // --- Calendar Feature ---
+        function renderFullCalendar() {
+            const year = currentCalendarDate.getFullYear();
+            const month = currentCalendarDate.getMonth(); // 0-indexed
+
+            currentMonthYear.textContent = `${currentCalendarDate.toLocaleString('default', { month: 'long' })} ${year}`;
+
+            const firstDay = new Date(year, month, 1);
+            const lastDay = new Date(year, month + 1, 0);
+            const today = new Date(); // Current actual date
+
+            let html = `<table>`;
+            html += '<thead><tr>' + ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d=>`<th>${d}</th>`).join('') + '</tr></thead><tbody><tr>';
+
+            // Fill leading empty cells
+            for(let i=0;i<firstDay.getDay();i++) html += '<td></td>';
+
+            // Fill days of the month
+            for(let d=1;d<=lastDay.getDate();d++) {
+                const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+                const hasTask = tasks.some(t => t.due === dateStr);
+                const isCurrentDay = (d === today.getDate() && month === today.getMonth() && year === today.getFullYear());
+                
+                let cellClass = '';
+                if (hasTask) cellClass += 'has-task';
+                if (isCurrentDay) cellClass += (cellClass ? ' ' : '') + 'current-day';
+
+                html += `<td class='${cellClass}' onclick='showTasksForDate("${dateStr}")' title='${dateStr}'>${d}${hasTask?'★':''}</td>`;
+                
+                if ((firstDay.getDay() + d) % 7 === 0) html += '</tr><tr>';
+            }
+            html += '</tr></tbody></table>';
+            fullCalendarEl.innerHTML = html;
+            document.getElementById('calendar-tasks').innerHTML = ''; // Clear tasks on calendar view change
+        }
+
+        function changeMonth(delta) {
+            currentCalendarDate.setMonth(currentCalendarDate.getMonth() + delta);
+            renderFullCalendar();
+        }
+
+        function renderCalendarTasks() {
+            // This function is now mostly handled by showTasksForDate being called on date click
+            // No need to render all tasks here initially
+        }
+
+        function showTasksForDate(date) {
+            const calendarTasksEl = document.getElementById('calendar-tasks');
+            const tasksForDate = tasks.filter(t => t.due === date);
+            let html = `<h3 style="margin-bottom:10px;">Tasks for ${date}:</h3>`;
+            html += tasksForDate.map(t =>
+                `<div class='task-card'>
+                    <div style="font-weight:bold;">${t.title}</div>
+                    <div style='font-size:13px;color:#6b7280;'>${t.desc}</div>
+                    <div style='font-size:12px;color:#6b7280;'>Priority: ${t.priority}</div>
+                    <div style='font-size:12px;color:#f59e42;'>Status: ${t.status === 'half' ? 'Half Done' : (t.completed ? 'Completed' : 'Not Started')}</div>
+                </div>`
+            ).join('') || '<div style="color:#6b7280;">No tasks for this date.</div>';
+            calendarTasksEl.innerHTML = html;
+        }
+
+        // --- Notepad Feature ---
+        function renderNotepad() {
+            // Hide edit area initially
+            notepadEditArea.style.display = 'none';
+
+            // Clear new note input fields
+            newNoteTitleInput.value = '';
+            newNoteContentInput.value = '';
+
+            // Render existing notes list
+            let html = '<h3>My Notes</h3>';
+            if (notepadNotes.length === 0) {
+                html += '<div style="color:#6b7280;">No notes yet. Add one above!</div>';
+            } else {
+                notepadNotes.forEach(note => {
+                    html += `
+                        <div class="notepad-note-card" onclick="openNoteForEditing('${note.id}')">
+                            <div class="note-title">${note.title || 'Untitled Note'}</div>
+                        </div>
+                    `;
+                });
+            }
+            notepadNoteList.innerHTML = html;
+            saveData();
+        }
+
+        function addNote() {
+            const title = newNoteTitleInput.value.trim();
+            const content = newNoteContentInput.value.trim();
+
+            if (!title && !content) {
+                showPopup('Note cannot be empty!');
+                return;
+            }
+
+            notepadNotes.unshift({ // Add to the beginning of the array
+                id: Date.now().toString(),
+                title: title || 'Untitled Note',
+                content: content
+            });
+            renderNotepad();
+            showPopup('Note added!');
+            saveData();
+        }
+
+        function openNoteForEditing(id) {
+            const note = notepadNotes.find(n => n.id === id);
+            if (note) {
+                editingNoteId = id;
+                editNoteTitleInput.value = note.title;
+                editNoteContentInput.value = note.content;
+                document.getElementById('edit-note-title-display').textContent = note.title; // Update display title
+                notepadEditArea.style.display = 'block';
+                newNoteTitleInput.focus(); // Focus on title input in edit area
+            }
+        }
+
+        function saveEditedNote() {
+            const note = notepadNotes.find(n => n.id === editingNoteId);
+            if (note) {
+                const newTitle = editNoteTitleInput.value.trim();
+                const newContent = editNoteContentInput.value.trim();
+
+                if (!newTitle && !newContent) {
+                    showPopup('Note cannot be empty!');
+                    return;
+                }
+
+                note.title = newTitle || 'Untitled Note';
+                note.content = newContent;
+                
+                renderNotepad(); // Re-render the list to reflect changes
+                notepadEditArea.style.display = 'none'; // Hide edit area
+                editingNoteId = null;
+                showPopup('Note updated!');
+                saveData();
+            }
+        }
+
+        function deleteNote() {
+            if (confirm('Delete this note permanently?')) {
+                notepadNotes = notepadNotes.filter(n => n.id !== editingNoteId);
+                renderNotepad();
+                notepadEditArea.style.display = 'none'; // Hide edit area
+                editingNoteId = null;
+                showPopup('Note deleted!');
+                saveData();
+            }
+        }
+
+        function exportNotes() {
+            const data = notepadNotes;
+            const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'focusboard-notepad-notes.json';
+            a.click();
+            URL.revokeObjectURL(url);
+            showPopup('Notepad notes exported!');
+        }
+
+        function importNotes(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const importedData = JSON.parse(e.target.result);
+                    if (Array.isArray(importedData) && importedData.every(note => note.id && typeof note.title === 'string' && typeof note.content === 'string')) {
+                        notepadNotes = importedData;
+                        renderNotepad();
+                        showPopup('Notepad notes imported successfully!');
+                        saveData();
+                    } else {
+                        showPopup('Invalid notepad file format.');
+                    }
+                } catch (error) {
+                    showPopup('Failed to import notes. Error: ' + error.message);
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        // --- Settings Feature ---
+        function applyTheme(theme) {
+            if (theme === 'dark') {
+                document.body.style.background = '#18181b';
+                document.body.style.color = '#f3f4f6';
+                document.querySelectorAll('.sidebar, .modal, .task-card, .notepad-note-card, #notepad-edit-area').forEach(el => {
+                    el.style.background = '#27272a';
+                });
+                document.querySelectorAll('input, textarea, select').forEach(el => {
+                    el.style.background = '#3f3f46';
+                    el.style.color = '#f3f4f6';
+                    el.style.borderColor = '#52525b';
+                });
+                document.querySelector('.sidebar h1').style.color = '#bfdbfe';
+                document.querySelectorAll('.sidebar button:not(.active)').forEach(btn => btn.style.color = '#d1d5db');
+                document.querySelectorAll('.sidebar button.active').forEach(btn => {
+                    btn.style.background = '#374151';
+                    btn.style.color = '#fff';
+                });
+                document.querySelectorAll('.tag').forEach(tagEl => {
+                    tagEl.style.background = '#4f46e5';
+                    tagEl.style.color = '#e0e7ff';
+                });
+                document.querySelectorAll('.actions button').forEach(btn => {
+                    btn.style.background = '#4b5563';
+                    btn.style.color = '#f3f4f6';
+                });
+                document.querySelector('.modal .actions button#cancel-btn').style.background = '#6b7280';
+                document.getElementById('notepad-edit-area').style.boxShadow = '0 2px 8px #0004'; // Adjust shadow for dark theme
+                document.querySelectorAll('.notepad-note-card').forEach(card => {
+                    card.style.borderLeftColor = '#6d28d9'; // Darker purple for notepad notes
+                });
+            } else {
+                document.body.style.background = '#f3f4f6';
+                document.body.style.color = ''; // Reset to default
+                document.querySelectorAll('.sidebar, .modal, .task-card, .notepad-note-card, #notepad-edit-area').forEach(el => {
+                    el.style.background = ''; // Reset to default
+                });
+                document.querySelectorAll('input, textarea, select').forEach(el => {
+                    el.style.background = '';
+                    el.style.color = '';
+                    el.style.borderColor = '';
+                });
+                document.querySelector('.sidebar h1').style.color = '';
+                document.querySelectorAll('.sidebar button').forEach(btn => btn.style.color = '');
+                document.querySelectorAll('.sidebar button.active').forEach(btn => {
+                    btn.style.background = '';
+                    btn.style.color = '';
+                });
+                document.querySelectorAll('.tag').forEach(tagEl => {
+                    tagEl.style.background = '';
+                    tagEl.style.color = '';
+                });
+                document.querySelectorAll('.actions button').forEach(btn => {
+                    btn.style.background = '';
+                    btn.style.color = '';
+                });
+                document.querySelector('.modal .actions button#cancel-btn').style.background = '';
+                document.getElementById('notepad-edit-area').style.boxShadow = ''; // Reset shadow
+                document.querySelectorAll('.notepad-note-card').forEach(card => {
+                    card.style.borderLeftColor = ''; // Reset border color
+                });
+            }
+        }
+
+
+        // --- Popup ---
+        function showPopup(message) {
+            popup.textContent = message;
+            popup.style.display = 'block';
+            setTimeout(() => { popup.style.display = 'none'; }, 2000);
+        }
+
+        // --- Event Listeners ---
+        addTaskBtn.addEventListener('click', () => openModal());
+        saveBtn.addEventListener('click', saveTask);
+        cancelBtn.addEventListener('click', closeModal);
+        addTagBtn.addEventListener('click', addTag);
+        tagInput.addEventListener('keydown', e => { if (e.key === 'Enter') addTag(); });
+        searchInput.addEventListener('input', renderTasks);
+        tagFilterEl.addEventListener('change', () => {
+            localStorage.setItem('focusboard_selected_tag_filter', tagFilterEl.value);
+            renderTasks();
+        });
+        dateFilterEl.addEventListener('change', renderTasks);
+        modalBg.addEventListener('click', (e) => {
+            if (e.target === modalBg) closeModal();
+        });
+
+        navTasks.addEventListener('click', () => { setActiveNav(navTasks); showSection('tasks'); renderTasks(); });
+        navCalendar.addEventListener('click', () => { setActiveNav(navCalendar); showSection('calendar'); renderFullCalendar(); renderCalendarTasks(); });
+        // Borpin Board navigation removed
+        navNotepad.addEventListener('click', () => { setActiveNav(navNotepad); showSection('notepad'); renderNotepad(); });
+        navSettings.addEventListener('click', () => { setActiveNav(navSettings); showSection('settings'); });
+
+        // Notepad specific event listeners
+        addNewNoteBtn.addEventListener('click', addNote);
+        saveEditedNoteBtn.addEventListener('click', saveEditedNote);
+        deleteCurrentNoteBtn.addEventListener('click', deleteNote);
+        cancelEditNoteBtn.addEventListener('click', () => {
+            notepadEditArea.style.display = 'none';
+            editingNoteId = null;
+        });
+        exportNotepadBtn.addEventListener('click', exportNotes);
+        importNotepadBtn.addEventListener('click', () => importNotepadFileInput.click());
+        importNotepadFileInput.addEventListener('change', importNotes);
+
+
+        fontSizeSelect.addEventListener('change', (e) => {
+            document.body.style.fontSize = e.target.value;
+            localStorage.setItem('focusboard_font_size', e.target.value);
+        });
+
+        themeSelect.addEventListener('change', (e) => {
+            applyTheme(e.target.value);
+            localStorage.setItem('focusboard_theme', e.target.value);
+        });
+
+        accentColorInput.addEventListener('input', (e) => {
+            document.documentElement.style.setProperty('--accent-color', e.target.value);
+            localStorage.setItem('focusboard_accent_color', e.target.value);
+            // Re-render tasks to apply new accent color to tags
+            renderTasks();
+        });
+
+        customTagsInput.addEventListener('blur', (e) => {
+            customTags = e.target.value.split(',').map(t => t.trim()).filter(t => t);
+            localStorage.setItem('focusboard_custom_tags', JSON.stringify(customTags));
+            renderTagFilters(); // Update tag filter options
+        });
+
+        // Calendar navigation event listeners
+        prevMonthBtn.addEventListener('click', () => changeMonth(-1));
+        nextMonthBtn.addEventListener('click', () => changeMonth(1));
+
+
+        // Expose functions to global scope for inline HTML event handlers
+        window.editTask = editTask;
+        window.deleteTask = deleteTask;
+        window.toggleStatus = toggleStatus;
+        window.removeTag = removeTag;
+        window.showTasksForDate = showTasksForDate;
+        window.addTagFromCustom = addTagFromCustom;
+        window.openNoteForEditing = openNoteForEditing; // Expose for click handler
+
+
+        // Initial load and render
+        loadData();
+        renderTasks();
+        renderNotepad(); // Initial render for Notepad
+        showSection('tasks');
+        setActiveNav(navTasks);
+        renderFullCalendar(); // Initial render for calendar
+    </script>
+</body>
+</html>
